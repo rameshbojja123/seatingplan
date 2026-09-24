@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seating Plan Generator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- SheetJS for Excel processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- html2pdf for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        .times-font {
+            font-family: "Times New Roman", Times, serif;
+        }
+        
+        .register-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+        }
+        
+        .register-cell {
+            padding: 4px;
+            text-align: center;
+            font-size: 13pt;
+            height: 38px;
+        }
+
+        /* Screen Preview Styling */
+        .pdf-page {
+            width: 8.5in;
+            height: 11in; /* Strictly enforce letter page height */
+            box-sizing: border-box;
+            margin: 0 auto 20px auto;
+            background: white;
+            padding: 0.5in;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            page-break-after: always;
+            position: relative;
+            overflow: hidden; /* Prevent unexpected spillovers */
+        }
+
+        .pdf-page:last-child {
+            page-break-after: auto;
+        }
+
+        /* Print Styling */
+        @media print {
+            body {
+                background-color: white;
+                margin: 0;
+                padding: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .pdf-page {
+                margin: 0;
+                padding: 0.5in;
+                box-shadow: none;
+                width: 100%;
+                height: 100vh; /* Better compatibility for native print dialogs */
+            }
+            #print-container {
+                margin: 0;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+
+    <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md no-print mb-8">
+        <h1 class="text-2xl font-bold mb-6 text-gray-800">Seating Plan Generator</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Logo Upload -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">1. Upload Logo (Optional)</label>
+                <input type="file" id="logo-upload" accept="image/png, image/jpeg" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 cursor-pointer border border-gray-300 rounded-md">
+            </div>
+
+            <!-- Excel Upload -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">2. Upload SeatingData.xlsx</label>
+                <input type="file" id="excel-upload" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-gray-300 rounded-md">
+            </div>
+        </div>
+
+        <div id="action-buttons" class="hidden flex gap-4 mt-6">
+            <button id="print-btn" class="bg-gray-800 text-white px-6 py-2 rounded-md hover:bg-gray-900 transition font-semibold flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd" /></svg>
+                Print
+            </button>
+            <button id="download-pdf-btn" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition font-semibold flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                Download PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Container for the generated printable pages -->
+    <div id="print-container" class="w-full mx-auto"></div>
+
+    <script>
+        const fileInput = document.getElementById('excel-upload');
+        const logoInput = document.getElementById('logo-upload');
+        const printBtn = document.getElementById('print-btn');
+        const downloadPdfBtn = document.getElementById('download-pdf-btn');
+        const printContainer = document.getElementById('print-container');
+        const actionButtons = document.getElementById('action-buttons');
+
+        let customLogoBase64 = null;
+
+        // Handle Logo Upload
+        logoInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    customLogoBase64 = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Handle Print
+        printBtn.addEventListener('click', () => window.print());
+
+        // Handle PDF Download
+        downloadPdfBtn.addEventListener('click', () => {
+            const element = document.getElementById('print-container');
+            const opt = {
+                margin:       0,
+                filename:     'Seating_Plans.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' },
+                pagebreak:    { mode: 'css', after: '.pdf-page' }
+            };
+            
+            html2pdf().set(opt).from(element).save();
+        });
+
+        // Handle Excel Upload
+        fileInput.addEventListener('change', handleFile);
+
+        function handleFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+                
+                printContainer.innerHTML = ''; // Clear previous
+
+                workbook.SheetNames.forEach(sheetName => {
+                    const sheet = workbook.Sheets[sheetName];
+                    let rows = XLSX.utils.sheet_to_json(sheet);
+                    
+                    if(rows.length === 0) return;
+
+                    let uniqueRecords = new Map();
+                    rows.forEach(row => {
+                        let branch = row.BRANCH ? row.BRANCH.toString().trim() : 'UNKNOWN';
+                        let regno = row.REGNO ? row.REGNO.toString().trim() : '';
+                        
+                        if (regno && !uniqueRecords.has(regno)) {
+                            row.BRANCH = branch; 
+                            uniqueRecords.set(regno, row);
+                        }
+                    });
+
+                    let cleanData = Array.from(uniqueRecords.values());
+                    cleanData.sort((a, b) => a.REGNO.toString().localeCompare(b.REGNO.toString()));
+
+                    let groupedByBranch = {};
+                    cleanData.forEach(row => {
+                        if (!groupedByBranch[row.BRANCH]) groupedByBranch[row.BRANCH] = [];
+                        groupedByBranch[row.BRANCH].push(row);
+                    });
+
+                    for (const branch in groupedByBranch) {
+                        const branchData = groupedByBranch[branch];
+                        const groupSize = 35;
+
+                        for (let i = 0; i < branchData.length; i += groupSize) {
+                            const group = branchData.slice(i, i + groupSize);
+                            generatePage(group, sheetName, branch);
+                        }
+                    }
+                });
+
+                actionButtons.classList.remove('hidden');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function formatDate(dateVal) {
+            if (!dateVal) return "";
+            if (dateVal instanceof Date) {
+                return dateVal.toLocaleDateString('en-GB').replace(/\//g, '-');
+            }
+            return dateVal.toString();
+        }
+
+        function generatePage(group, sheetName, branch) {
+            const first = group[0];
+            const registers = group.map(g => g.REGNO);
+            const totalRegistered = registers.length;
+            const dateStr = formatDate(first.DATEOFEXAM);
+            const courseTitle = (first.COURSETITLE || "").toString().replace(/\n/g, " ");
+
+            const page = document.createElement('div');
+            page.className = 'pdf-page times-font text-[14pt] leading-snug';
+            
+            let gridCells = '';
+            let regIndex = 0;
+            for(let r = 0; r < 7; r++) {
+                for(let c = 0; c < 5; c++) {
+                    let val = regIndex < totalRegistered ? registers[regIndex] : '';
+                    gridCells += `<div class="register-cell">${val}</div>`;
+                    regIndex++;
+                }
+            }
+
+            const logoHtml = customLogoBase64 
+                ? `<img src="${customLogoBase64}" alt="University Logo" class="h-16 mx-auto mb-2">`
+                : `<h1 class="font-bold text-2xl mb-2 tracking-wide uppercase">SREENIDHI UNIVERSITY</h1>`;
+
+            // Adjusted padding/margins throughout to ensure comfortable fit
+            page.innerHTML = `
+                <div class="text-center mb-3">
+                    ${logoHtml}
+                    <h2 class="font-bold text-[14pt] m-0">SEMESTER END EXAMINATIONS – AUGUST 2026</h2>
+                    <h3 class="font-bold text-[14pt] m-0">ANSWER BOOKLETS</h3>
+                </div>
+
+                <table class="w-full mb-3 font-bold border-collapse">
+                    <tbody>
+                        <tr>
+                            <td class="pb-1 w-[40%] text-left">Degree: ${first.DEGREE || ''}</td>
+                            <td class="pb-1 w-[20%]"></td>
+                            <td class="pb-1 w-[40%] text-right">Semester: ${first.SEMESTER || ''}</td>
+                        </tr>
+                        <tr>
+                            <td class="pb-1 text-left">Branch: ${branch}</td>
+                            <td class="pb-1"></td>
+                            <td class="pb-1 text-right">Hall No: ${first.HALLNO || ''}</td>
+                        </tr>
+                        <tr>
+                            <td class="pb-1 text-left">Course Code: ${first.COURSECODE || ''}</td>
+                            <td colspan="2" class="pb-1 text-left">Course Title: ${courseTitle}</td>
+                        </tr>
+                        <tr>
+                            <td class="pb-2 text-left">Date of Exam: ${dateStr}</td>
+                            <td class="pb-2 text-left">Session: ${first.SESSION || ''}</td>
+                            <td class="pb-2 text-right">Cover No: ${first.COVERNO || ''}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="border-b-[4px] border-black mb-3"></div>
+
+                <div class="text-center font-bold mb-3">REGISTERED NUMBERS</div>
+                
+                <div class="register-grid mb-4">
+                    ${gridCells}
+                </div>
+
+                <div class="border-b-[4px] border-black mb-4"></div>
+
+                <!-- Footer Summary (tightened spacing) -->
+                <table class="w-full font-bold text-[14pt]">
+                    <tbody>
+                        <tr>
+                            <td class="pb-1 w-3/4">Total Number of Candidates Registered :</td>
+                            <td class="pb-1 w-1/4 text-left">${totalRegistered}</td>
+                        </tr>
+                        <tr>
+                            <td class="pb-1">Total Number of Candidates Present :</td>
+                            <td class="pb-1"></td>
+                        </tr>
+                        <tr>
+                            <td class="pb-1">Total Number of Candidates Absent :</td>
+                            <td class="pb-1"></td>
+                        </tr>
+                        <tr>
+                            <td class="pb-1">Total Number of Candidates Detained :</td>
+                            <td class="pb-1"></td>
+                        </tr>
+                        <tr>
+                            <td class="pb-8">Total Number of Candidates Malpractice :</td> <!-- Reduced from pb-12 -->
+                            <td class="pb-8"></td>
+                        </tr>
+                        <tr>
+                            <td></td>
+                            <td class="text-right pt-2">Signature of Chief Superintendent</td> <!-- Reduced from pt-8 -->
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+
+            printContainer.appendChild(page);
+        }
+    </script>
+</body>
+</html>
