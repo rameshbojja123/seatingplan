@@ -97,7 +97,7 @@
         </div>
     </div>
 
-    <!-- Container for the generated printable pages -->
+    <!-- Container for printable pages -->
     <div id="print-container" class="w-full mx-auto"></div>
 
     <script>
@@ -139,7 +139,7 @@
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, {type: 'array', cellDates: true});
                 
-                printContainer.innerHTML = ''; // Clear previous
+                printContainer.innerHTML = '';
 
                 workbook.SheetNames.forEach(sheetName => {
                     const sheet = workbook.Sheets[sheetName];
@@ -167,14 +167,14 @@
                         groupedByBranch[row.BRANCH].push(row);
                     });
 
-                    // 1. Calculate the total number of covers for this specific sheet
+                    // 1. Calculate total covers for this sheet
                     let totalCovers = 0;
                     const groupSize = 35;
                     for (const branch in groupedByBranch) {
                         totalCovers += Math.ceil(groupedByBranch[branch].length / groupSize);
                     }
 
-                    // 2. Generate pages with sequential cover numbers
+                    // 2. Generate pages
                     let currentCover = 1;
                     for (const branch in groupedByBranch) {
                         const branchData = groupedByBranch[branch];
@@ -197,7 +197,53 @@
             if (dateVal instanceof Date) {
                 return dateVal.toLocaleDateString('en-GB').replace(/\//g, '-');
             }
+            let num = Number(dateVal);
+            if (!isNaN(num) && num > 40000 && num < 60000) {
+                let date = new Date(Math.round((num - 25569) * 86400 * 1000));
+                let d = String(date.getUTCDate()).padStart(2, '0');
+                let m = String(date.getUTCMonth() + 1).padStart(2, '0');
+                let y = date.getUTCFullYear();
+                return `${d}-${m}-${y}`;
+            }
             return dateVal.toString();
+        }
+
+        // Helper function to resolve Excel date serials (e.g. 43586) to "1/19" format
+        function formatCoverNo(rawVal, currentCover, totalCovers) {
+            if (rawVal === undefined || rawVal === null || rawVal === '') {
+                return `${currentCover}/${totalCovers}`;
+            }
+
+            // Handle JS Date object
+            if (rawVal instanceof Date) {
+                let day = rawVal.getUTCDate();
+                let month = rawVal.getUTCMonth() + 1;
+                let year = rawVal.getUTCFullYear() % 100;
+                if (year === 18 || year === 19 || year === 20 || year === 26) {
+                    return `${day}/${year}`;
+                }
+                return `${day}/${month}`;
+            }
+
+            let num = Number(rawVal);
+            // Handle Excel serial numbers (like 43586)
+            if (!isNaN(num) && num > 40000 && num < 60000) {
+                let date = new Date(Math.round((num - 25569) * 86400 * 1000));
+                let day = date.getUTCDate();
+                let month = date.getUTCMonth() + 1;
+                let year = date.getUTCFullYear() % 100;
+                if (year === 18 || year === 19 || year === 20 || year === 26) {
+                    return `${day}/${year}`;
+                }
+                return `${day}/${month}`;
+            }
+
+            let strVal = String(rawVal).trim();
+            if (strVal.includes('/')) {
+                return strVal;
+            }
+
+            return `${currentCover}/${totalCovers}`;
         }
 
         function generatePage(group, sheetName, branch, currentCover, totalCovers) {
@@ -206,6 +252,10 @@
             const totalRegistered = registers.length;
             const dateStr = formatDate(first.DATEOFEXAM);
             const courseTitle = (first.COURSETITLE || "").toString().replace(/\n/g, " ");
+
+            // Get Cover Number directly or parse Excel serial values
+            const rawCover = first.COVERNO || first['COVER NO'] || first['COVER_NO'];
+            const coverNoDisplay = formatCoverNo(rawCover, currentCover, totalCovers);
 
             const page = document.createElement('div');
             page.className = 'pdf-page times-font text-[14pt] leading-snug';
@@ -248,7 +298,7 @@
                         <tr>
                             <td class="pb-2 text-left">Date of Exam: ${dateStr}</td>
                             <td class="pb-2 text-left">Session: ${first.SESSION || ''}</td>
-                            <td class="pb-2 text-right">Cover No: ${currentCover}/${totalCovers}</td> <!-- Dynamically Calculated -->
+                            <td class="pb-2 text-right">Cover No: ${coverNoDisplay}</td>
                         </tr>
                     </tbody>
                 </table>
