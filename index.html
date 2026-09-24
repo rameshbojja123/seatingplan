@@ -35,7 +35,7 @@
         /* Screen Preview Styling */
         .pdf-page {
             width: 8.5in;
-            height: 11in; /* Strictly enforce letter page height */
+            height: 11in; 
             box-sizing: border-box;
             margin: 0 auto 20px auto;
             background: white;
@@ -43,7 +43,7 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             page-break-after: always;
             position: relative;
-            overflow: hidden; /* Prevent unexpected spillovers */
+            overflow: hidden; 
         }
 
         .pdf-page:last-child {
@@ -65,7 +65,7 @@
                 padding: 0.5in;
                 box-shadow: none;
                 width: 100%;
-                height: 100vh; /* Better compatibility for native print dialogs */
+                height: 100vh; 
             }
             #print-container {
                 margin: 0;
@@ -79,18 +79,10 @@
     <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md no-print mb-8">
         <h1 class="text-2xl font-bold mb-6 text-gray-800">Seating Plan Generator</h1>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <!-- Logo Upload -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">1. Upload Logo (Optional)</label>
-                <input type="file" id="logo-upload" accept="image/png, image/jpeg" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 cursor-pointer border border-gray-300 rounded-md">
-            </div>
-
+        <div class="mb-6">
             <!-- Excel Upload -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">2. Upload SeatingData.xlsx</label>
-                <input type="file" id="excel-upload" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-gray-300 rounded-md">
-            </div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Upload SeatingData.xlsx</label>
+            <input type="file" id="excel-upload" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-gray-300 rounded-md">
         </div>
 
         <div id="action-buttons" class="hidden flex gap-4 mt-6">
@@ -110,25 +102,12 @@
 
     <script>
         const fileInput = document.getElementById('excel-upload');
-        const logoInput = document.getElementById('logo-upload');
         const printBtn = document.getElementById('print-btn');
         const downloadPdfBtn = document.getElementById('download-pdf-btn');
         const printContainer = document.getElementById('print-container');
         const actionButtons = document.getElementById('action-buttons');
 
-        let customLogoBase64 = null;
-
-        // Handle Logo Upload
-        logoInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    customLogoBase64 = event.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+        const defaultLogoUrl = "https://raw.githubusercontent.com/rameshbojja123/seatingplan/main/logo.png?utm_source=chatgpt.com";
 
         // Handle Print
         printBtn.addEventListener('click', () => window.print());
@@ -232,11 +211,8 @@
                 }
             }
 
-            const logoHtml = customLogoBase64 
-                ? `<img src="${customLogoBase64}" alt="University Logo" class="h-16 mx-auto mb-2">`
-                : `<h1 class="font-bold text-2xl mb-2 tracking-wide uppercase">SREENIDHI UNIVERSITY</h1>`;
+            const logoHtml = `<img src="${defaultLogoUrl}" alt="University Logo" class="h-16 mx-auto mb-2">`;
 
-            // Adjusted padding/margins throughout to ensure comfortable fit
             page.innerHTML = `
                 <div class="text-center mb-3">
                     ${logoHtml}
@@ -278,7 +254,7 @@
 
                 <div class="border-b-[4px] border-black mb-4"></div>
 
-                <!-- Footer Summary (tightened spacing) -->
+                <!-- Footer Summary -->
                 <table class="w-full font-bold text-[14pt]">
                     <tbody>
                         <tr>
@@ -298,12 +274,12 @@
                             <td class="pb-1"></td>
                         </tr>
                         <tr>
-                            <td class="pb-8">Total Number of Candidates Malpractice :</td> <!-- Reduced from pb-12 -->
+                            <td class="pb-8">Total Number of Candidates Malpractice :</td>
                             <td class="pb-8"></td>
                         </tr>
                         <tr>
                             <td></td>
-                            <td class="text-right pt-2">Signature of Chief Superintendent</td> <!-- Reduced from pt-8 -->
+                            <td class="text-right pt-2">Signature of Chief Superintendent</td>
                         </tr>
                     </tbody>
                 </table>
