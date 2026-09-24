@@ -167,13 +167,22 @@
                         groupedByBranch[row.BRANCH].push(row);
                     });
 
+                    // 1. Calculate the total number of covers for this specific sheet
+                    let totalCovers = 0;
+                    const groupSize = 35;
+                    for (const branch in groupedByBranch) {
+                        totalCovers += Math.ceil(groupedByBranch[branch].length / groupSize);
+                    }
+
+                    // 2. Generate pages with sequential cover numbers
+                    let currentCover = 1;
                     for (const branch in groupedByBranch) {
                         const branchData = groupedByBranch[branch];
-                        const groupSize = 35;
-
+                        
                         for (let i = 0; i < branchData.length; i += groupSize) {
                             const group = branchData.slice(i, i + groupSize);
-                            generatePage(group, sheetName, branch);
+                            generatePage(group, sheetName, branch, currentCover, totalCovers);
+                            currentCover++;
                         }
                     }
                 });
@@ -191,7 +200,7 @@
             return dateVal.toString();
         }
 
-        function generatePage(group, sheetName, branch) {
+        function generatePage(group, sheetName, branch, currentCover, totalCovers) {
             const first = group[0];
             const registers = group.map(g => g.REGNO);
             const totalRegistered = registers.length;
@@ -239,7 +248,7 @@
                         <tr>
                             <td class="pb-2 text-left">Date of Exam: ${dateStr}</td>
                             <td class="pb-2 text-left">Session: ${first.SESSION || ''}</td>
-                            <td class="pb-2 text-right">Cover No: ${first.COVERNO || ''}</td>
+                            <td class="pb-2 text-right">Cover No: ${currentCover}/${totalCovers}</td> <!-- Dynamically Calculated -->
                         </tr>
                     </tbody>
                 </table>
